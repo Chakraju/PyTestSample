@@ -1,8 +1,9 @@
 import re
 import os
+import sys
+import argparse
 import subprocess
 import tempfile
-import sys
 
 def extract_table_name(statement, command):
     pattern = rf'{command}\s+(ONLY\s+)?("?[\w\.]+"?)'
@@ -65,18 +66,36 @@ def separate_ddl_statements(ddl_content):
     except Exception as e:
         raise RuntimeError(f"Error while parsing DDL statements: {e}")
 
-def run_script(script_name, input_file):
+def run_script(script_name, input_file, output_folder, db_type=None):
+    cmd = ['python', script_name, input_file, '--output', output_folder]
+    if db_type:
+        cmd += ['--db', db_type]
     try:
-        print(f"🔧 Running: {script_name} on {input_file}")
-        subprocess.run(['python', script_name, input_file], check=True)
+        print(f"🔧 Running: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Script '{script_name}' failed with exit code {e.returncode}")
     except FileNotFoundError:
         raise RuntimeError(f"Script '{script_name}' not found. Make sure it exists.")
 
-def main(input_ddl_path):
+def main():
+    parser = argparse.ArgumentParser(description="Liquibase DDL splitter and dispatcher.")
+    parser.add_argument('--input', required=True, help='Path to input DDL SQL file')
+    parser.add_argument('--output', default='.', help='Output folder for generated YAML (default: current directory)')
+    parser.add_argument('--db', help='Target database type (e.g., postgres, mysql)')
+
+    args = parser.parse_args()
+
+    input_ddl_path = args.input
+    output_folder = args.output
+    db_type = args.db
+
     if not os.path.isfile(input_ddl_path):
         print(f"❌ Error: File not found — {input_ddl_path}")
+        sys.exit(1)
+
+    if not os.path.isdir(output_folder):
+        print(f"❌ Error: Output folder does not exist — {output_folder}")
         sys.exit(1)
 
     try:
@@ -102,10 +121,10 @@ def main(input_ddl_path):
                 alter_temp.write('\n\n'.join(existing_alters))
 
         if create_file_path:
-            run_script('create.py', create_file_path)
+            run_script('create.py', create_file_path, output_folder, db_type)
 
         if alter_file_path:
-            run_script('alter.py', alter_file_path)
+            run_script('alter.py', alter_file_path, output_folder, db_type)
 
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -117,7 +136,4 @@ def main(input_ddl_path):
             os.unlink(alter_file_path)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python main.py input_ddl.sql")
-        sys.exit(1)
-    main(sys.argv[1])
+    main()
