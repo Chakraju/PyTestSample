@@ -1,0 +1,44 @@
+ServiceNow Automation with YAML and Python
+1. Introduction
+This document outlines the design for a Python-based automation tool that creates ServiceNow records from structured YAML input. It aims to streamline the process of database release tracking by using REST APIs to populate UI pages for databases, releases, and stakeholders.
+2. Overview
+The tool will parse a YAML file containing information about database, release, and stakeholders, then use the ServiceNow REST API to create appropriate records in custom tables. The design emphasizes modularity, validation, and CI/CD integration readiness.
+3. YAML File Structure
+An example structure of the YAML input is shown below:
+
+database:
+  name: finance_db
+  type: postgresql
+  environment: dev
+  host: dev-finance-db.example.com
+  port: 5432
+
+release:
+  version: "1.0.3"
+  date: "2025-07-28"
+  description: "Added new tax calculation logic"
+  applied_by: db_admin
+
+stakeholders:
+  - name: John Doe
+    role: DBA
+    email: john.doe@example.com
+  - name: Jane Smith
+    role: Product Manager
+    email: jane.smith@example.com
+    
+4. System Design
+The system consists of the following components:
+4.1 ServiceNow Preparation
+• Ensure API access to ServiceNow.
+• Note the instance URL, credentials, and table names (e.g., x_app_db_database, x_app_db_release, x_app_db_stakeholder).
+4.2 Python Modules
+• yaml_loader.py – Loads and validates YAML input.
+• servicenow_client.py – Handles REST API authentication and calls.
+• mapper.py – Transforms YAML into ServiceNow API payloads.
+• main.py – Coordinates the workflow of loading YAML, mapping data, and calling APIs.
+4.3 Workflow
+1. Load YAML file.
+2. Create a database record in ServiceNow.
+3. Use the returned sys_id to create a linked release record.
+4. Create stakeholder records linked to the release.
