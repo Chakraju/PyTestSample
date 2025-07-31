@@ -9,6 +9,7 @@ ________________________________________
 •	Enable rollback verification after applying forward SQL.
 •	Generate and run test cases from custom SQL queries.
 •	Produce human-readable HTML test reports.
+•	Generate editable text snapshots from sandbox DB for DBAs to maintain.
 ________________________________________
 3. Architecture
 +--------------------------+
@@ -20,6 +21,8 @@ ________________________________________
     | generate_tests.py |
     | Generates pytest  |
     | test files        |
+    | Also calls        |
+    | snapshot creation |
     +------------------+
             |
     +-------v---------+
@@ -42,6 +45,7 @@ ________________________________________
 [Inputs]
  - queries/*.sql          => Schema-checking queries
  - releases/R*/.sql       => Forward & rollback scripts
+ - expected/              => Editable expected output from sandbox
 
 [Outputs]
  - generated_tests/*.py   => Pytest test cases
@@ -56,40 +60,73 @@ dbtest_framework/
 │   └── R1/
 │       ├── forward.sql
 │       └── rollback.sql
+├── expected/                  # Editable snapshots from sandbox
+│   └── tables/                # One file per table (employee.txt, etc)
 ├── generated_tests/           # Auto-generated test files
 ├── tests/                     # Optional manual tests
 ├── utils/
 │   ├── db.py                  # Connect and query DBs
 │   ├── compare.py             # Compare query outputs
 │   └── release_runner.py      # Apply forward/rollback SQL
-├── generate_tests.py          # Creates test files from queries
+├── snapshot_generator.py      # Creates editable snapshots from sandbox (also callable by generate_tests)
+├── generate_tests.py          # Creates test files from snapshots and triggers snapshot generation
 ├── execute_tests.py           # Runs pytest and generates reports
 ├── main.py                    # Combined generation + execution
 ________________________________________
 5. Component Design
-5.1 generate_tests.py
+5.1 snapshot_generator.py
+•	Input: None (uses sandbox env)
+•	For each table in sandbox:
+o	Extract:
+	Column names, types, nullability, default values
+	Primary and unique constraints
+	Triggers
+	Views using the table
+	Functions referencing the table
+o	Output: expected/tables/<table>.txt in human-editable format
+Example output (employee.txt):
+-- Columns
+id|integer|NO|nextval('employee_id_seq')
+first_name|character varying|NO|
+last_name|character varying|YES|
+department_id|integer|NO|
+
+-- Primary Key
+id
+
+-- Unique Constraints
+employee_email_key
+
+-- Triggers
+audit_employee_changes BEFORE INSERT OR UPDATE ON employee FOR EACH ROW EXECUTE FUNCTION audit_func()
+
+-- Views Referencing Table
+employee_summary_view
+
+-- Functions Referencing Table
+calculate_bonus(integer)
+5.2 generate_tests.py
 •	Input: Release name (e.g., R1)
-•	Reads all schema-checking queries
-•	Creates a pytest-compatible test file
+•	Internally calls snapshot generation to update expected/tables/
+•	Reads snapshots from expected/tables/
+•	Creates pytest test file for the release
 •	Each test:
 o	Applies forward.sql
-o	Runs validation queries against sandbox and target env (e.g., dev)
+o	Validates against snapshot
 o	Applies rollback.sql
-o	Re-validates post-rollback
-5.2 execute_tests.py
+o	Re-validates rollback state
+5.3 execute_tests.py
 •	Input: Release name
 •	Runs corresponding test file using Pytest
 •	Produces an HTML report using pytest-html
-5.3 main.py
+5.4 main.py
 •	Input: Release name
-•	Invokes generate_tests.py followed by execute_tests.py
+•	Runs generate_tests.py (which triggers snapshot generation), then execute_tests.py
 ________________________________________
 6. Test Strategy
-•	Each query in queries/*.sql will run on:
-o	Sandbox (expected schema)
-o	Target env (Dev) post-forward and post-rollback
-•	Comparisons done using utils/compare.py
-•	Failures highlight differences in row counts or values
+•	Each table’s snapshot file becomes the golden standard.
+•	All validation compares sandbox snapshot with target DB (after forward and after rollback).
+•	Failures highlight missing or unexpected columns, constraints, triggers, etc.
 ________________________________________
 7. Environment Configuration (envs.yaml)
 sandbox:
@@ -108,7 +145,7 @@ dev:
 ________________________________________
 8. Execution Commands
 # Step-by-step:
-python generate_tests.py R1
+python generate_tests.py R1     # includes snapshot creation
 python execute_tests.py R1
 
 # Combined:
@@ -120,4 +157,3 @@ ________________________________________
 •	Hash-based snapshot testing
 •	Liquibase changelog parser for YAML-based releases
 •	Integration with Jenkins/GitHub Actions
-
