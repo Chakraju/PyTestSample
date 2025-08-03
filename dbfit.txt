@@ -1,159 +1,86 @@
 Design Document: Custom Pytest-Based Database Release Testing Framework
-________________________________________
 1. Overview
-This document describes the design of a Python-based automated testing framework intended to replace DBFit for validating PostgreSQL database schema changes across environments using Pytest. The framework supports forward and rollback SQL verification and generates HTML test reports.
-________________________________________
+This document describes the design of a Python-based automated testing framework intended to replace DBFit for validating PostgreSQL database schema changes across environments using Pytest. The framework supports forward SQL verification across environments and rollback SQL verification only in the sandbox environment. It generates HTML test reports and integrates with Jenkins using Maven.
 2. Goals
-•	Replace DBFit with a maintainable, modular Python-based solution.
-•	Support validation of table definitions, columns, constraints, triggers, views, functions, and privileges.
-•	Enable rollback verification after applying forward SQL.
-•	Generate and run test cases from custom SQL queries.
-•	Produce human-readable HTML test reports.
-•	Generate editable text snapshots from sandbox DB for DBAs to maintain.
-________________________________________
+- Replace DBFit with a maintainable, modular Python-based solution.
+- Support validation of table definitions, columns, constraints, triggers, views, functions, and privileges.
+- Enable rollback verification after applying forward SQL (only on sandbox).
+- Generate and run test cases from custom SQL queries.
+- Produce human-readable HTML test reports.
+- Generate editable YAML snapshots from sandbox DB.
+- Integrate test execution with Jenkins using Maven-compatible pom.xml.
 3. Architecture
-+--------------------------+
-|     main.py             |
-| (Orchestrator)          |
-+-----------+--------------+
-            |
-    +-------v--------+
-    | generate_tests.py |
-    | Generates pytest  |
-    | test files        |
-    | Also calls        |
-    | snapshot creation |
-    +------------------+
-            |
-    +-------v---------+
-    | execute_tests.py |
-    | Runs pytest tests|
-    +------------------+
+The framework uses YAML snapshots per table. Rollback testing is restricted to the sandbox environment. Jenkins can invoke tests via Maven using `pom.xml`.
+Main components:
+- generate_tests.py: creates snapshot and test files
+- execute_tests.py: runs pytest and generates HTML report
+- main.py: orchestrates full flow
+- utils/: helper modules for DB access, comparison, and SQL execution
+4. YAML Snapshot Format
+Each table's snapshot is saved as a YAML file under expected/tables/. These are manually editable.
+Example:
+columns:
+  - name: id
+    type: integer
+    nullable: false
+    default: nextval('employee_id_seq')
+  - name: first_name
+    type: varchar
+    nullable: false
+primary_key:
+  - id
+triggers:
+  - name: audit_employee_changes
+    event: BEFORE INSERT OR UPDATE
+    function: audit_func()
+5. Folder Structure
 
-       [Uses Below Modules]
-+---------------------+      +--------------------+
-| utils/db.py         |<---->| config/envs.yaml   |
-| DB connections      |      | Env configs        |
-+---------------------+      +--------------------+
-| utils/compare.py    |
-| Result comparison   |
-+---------------------+
-| utils/release_runner.py |
-| Apply SQL scripts   |
-+---------------------+
-
-[Inputs]
- - queries/*.sql          => Schema-checking queries
- - releases/R*/.sql       => Forward & rollback scripts
- - expected/              => Editable expected output from sandbox
-
-[Outputs]
- - generated_tests/*.py   => Pytest test cases
- - report_<release>.html  => HTML test reports
-________________________________________
-4. Folder Structure
 dbtest_framework/
 ├── config/
-│   └── envs.yaml              # DB connection configs
-├── queries/                   # Custom SQLs for schema validation
-├── releases/                  # Forward and rollback SQLs
+│   └── envs.yaml
+├── expected/
+│   └── tables/
+├── queries/
+├── releases/
 │   └── R1/
 │       ├── forward.sql
 │       └── rollback.sql
-├── expected/                  # Editable snapshots from sandbox
-│   └── tables/                # One file per table (employee.txt, etc)
-├── generated_tests/           # Auto-generated test files
-├── tests/                     # Optional manual tests
+├── generated_tests/
 ├── utils/
-│   ├── db.py                  # Connect and query DBs
-│   ├── compare.py             # Compare query outputs
-│   └── release_runner.py      # Apply forward/rollback SQL
-├── snapshot_generator.py      # Creates editable snapshots from sandbox (also callable by generate_tests)
-├── generate_tests.py          # Creates test files from snapshots and triggers snapshot generation
-├── execute_tests.py           # Runs pytest and generates reports
-├── main.py                    # Combined generation + execution
-________________________________________
-5. Component Design
-5.1 snapshot_generator.py
-•	Input: None (uses sandbox env)
-•	For each table in sandbox:
-o	Extract:
-	Column names, types, nullability, default values
-	Primary and unique constraints
-	Triggers
-	Views using the table
-	Functions referencing the table
-o	Output: expected/tables/<table>.txt in human-editable format
-Example output (employee.txt):
--- Columns
-id|integer|NO|nextval('employee_id_seq')
-first_name|character varying|NO|
-last_name|character varying|YES|
-department_id|integer|NO|
+│   ├── db.py
+│   ├── compare.py
+│   └── release_runner.py
+├── generate_tests.py
+├── execute_tests.py
+├── main.py
+├── pom.xml
+├── README.md
 
--- Primary Key
-id
+6. Maven Integration
+Maven exec plugin enables Jenkins to invoke Python scripts.
+Example pom.xml snippet:
 
--- Unique Constraints
-employee_email_key
+<plugin>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>exec-maven-plugin</artifactId>
+  <version>3.1.0</version>
+  <executions>
+    <execution>
+      <id>run-dbtests</id>
+      <phase>test</phase>
+      <goals><goal>exec</goal></goals>
+      <configuration>
+        <executable>python3</executable>
+        <arguments>
+          <argument>main.py</argument>
+          <argument>${env.RELEASE}</argument>
+        </arguments>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
 
--- Triggers
-audit_employee_changes BEFORE INSERT OR UPDATE ON employee FOR EACH ROW EXECUTE FUNCTION audit_func()
-
--- Views Referencing Table
-employee_summary_view
-
--- Functions Referencing Table
-calculate_bonus(integer)
-5.2 generate_tests.py
-•	Input: Release name (e.g., R1)
-•	Internally calls snapshot generation to update expected/tables/
-•	Reads snapshots from expected/tables/
-•	Creates pytest test file for the release
-•	Each test:
-o	Applies forward.sql
-o	Validates against snapshot
-o	Applies rollback.sql
-o	Re-validates rollback state
-5.3 execute_tests.py
-•	Input: Release name
-•	Runs corresponding test file using Pytest
-•	Produces an HTML report using pytest-html
-5.4 main.py
-•	Input: Release name
-•	Runs generate_tests.py (which triggers snapshot generation), then execute_tests.py
-________________________________________
-6. Test Strategy
-•	Each table’s snapshot file becomes the golden standard.
-•	All validation compares sandbox snapshot with target DB (after forward and after rollback).
-•	Failures highlight missing or unexpected columns, constraints, triggers, etc.
-________________________________________
-7. Environment Configuration (envs.yaml)
-sandbox:
-  host: localhost
-  port: 5432
-  user: sandbox_user
-  password: secret
-  dbname: sandbox_db
-
-dev:
-  host: dev-db.org.net
-  port: 5432
-  user: dev_user
-  password: secret
-  dbname: dev_db
-________________________________________
-8. Execution Commands
-# Step-by-step:
-python generate_tests.py R1     # includes snapshot creation
-python execute_tests.py R1
-
-# Combined:
-python main.py R1
-________________________________________
-9. Future Enhancements
-•	Add DB2 support
-•	Validate data changes along with schema
-•	Hash-based snapshot testing
-•	Liquibase changelog parser for YAML-based releases
-•	Integration with Jenkins/GitHub Actions
+7. Jenkins Usage
+To run the framework for a given release:
+export RELEASE=R1
+mvn test
