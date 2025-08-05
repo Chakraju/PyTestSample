@@ -1,3 +1,43 @@
+Key Considerations in This Context
+🔧 Custom Pytest
+✅ Tailored for your DB schema needs
+
+✅ Easy to integrate YAML input files (like FitNesse)
+
+✅ Flexible for triggers, functions, privileges, etc.
+
+✅ Supports PostgreSQL and DB2 with appropriate drivers
+
+✅ Jenkins integration via pytest + pytest-html
+
+✅ Maven support via exec-maven-plugin or pytest-runner
+
+➡️ Perfect fit for your needs, including rollback and HTML reporting.
+
+⚠️ DBUnit
+❌ Java-based, not natural fit for Python team
+
+⚠️ Focused on data state testing, not schema validation
+
+⚠️ Uses verbose XML datasets
+
+✅ Mature, good for legacy systems already in Java/JUnit
+
+❌ Difficult to extend for complex schema/DDL cases (like triggers)
+
+➡️ Not ideal unless your stack is already Java.
+
+⚠️ Database Rider
+✅ Cleaner than DBUnit
+
+⚠️ Still Java-based (annotations, JPA)
+
+⚠️ Focuses on entity-level data testing, not schema
+
+❌ Unnecessary complexity for a Python project
+
+➡️ Good only in Java + JPA microservices. Not suitable here.
+---
 When replacing **DBFit** for testing PostgreSQL schemas using **Python**, you have a few viable paths depending on your goals, test style, and CI/CD integration. Let’s compare **Custom Pytest**, **DBUnit**, and **Database Rider** to help you decide:
 
 ---
