@@ -1,86 +1,141 @@
 Design Document: Custom Pytest-Based Database Release Testing Framework
+________________________________________
 1. Overview
-This document describes the design of a Python-based automated testing framework intended to replace DBFit for validating PostgreSQL database schema changes across environments using Pytest. The framework supports forward SQL verification across environments and rollback SQL verification only in the sandbox environment. It generates HTML test reports and integrates with Jenkins using Maven.
+This document describes the design of a Python-based automated testing framework intended to replace DBFit for validating PostgreSQL database schema changes across environments using Pytest. The framework supports forward SQL verification across environments and rollback SQL verification only in the sandbox environment. It generates HTML test reports and integrates with Jenkins using Maven. Table metadata is extracted using external SQL templates.
+________________________________________
 2. Goals
-- Replace DBFit with a maintainable, modular Python-based solution.
-- Support validation of table definitions, columns, constraints, triggers, views, functions, and privileges.
-- Enable rollback verification after applying forward SQL (only on sandbox).
-- Generate and run test cases from custom SQL queries.
-- Produce human-readable HTML test reports.
-- Generate editable YAML snapshots from sandbox DB.
-- Integrate test execution with Jenkins using Maven-compatible pom.xml.
+•	Replace DBFit with a maintainable, modular Python-based solution.
+•	Support validation of table definitions, columns, constraints, triggers, views, functions, and privileges.
+•	Enable rollback verification after applying forward SQL (only on sandbox).
+•	Generate and run test cases from custom SQL queries.
+•	Produce human-readable HTML test reports.
+•	Generate editable YAML snapshots from sandbox DB.
+•	Store metadata extraction SQL in editable .sql files.
+•	Integrate test execution with Jenkins using Maven-compatible pom.xml.
+________________________________________
 3. Architecture
-The framework uses YAML snapshots per table. Rollback testing is restricted to the sandbox environment. Jenkins can invoke tests via Maven using `pom.xml`.
-Main components:
-- generate_tests.py: creates snapshot and test files
-- execute_tests.py: runs pytest and generates HTML report
-- main.py: orchestrates full flow
-- utils/: helper modules for DB access, comparison, and SQL execution
-4. YAML Snapshot Format
-Each table's snapshot is saved as a YAML file under expected/tables/. These are manually editable.
-Example:
-columns:
-  - name: id
-    type: integer
-    nullable: false
-    default: nextval('employee_id_seq')
-  - name: first_name
-    type: varchar
-    nullable: false
-primary_key:
-  - id
-triggers:
-  - name: audit_employee_changes
-    event: BEFORE INSERT OR UPDATE
-    function: audit_func()
-5. Folder Structure
++--------------------------+
+|     main.py             |
+| (Orchestrator)          |
++-----------+--------------+
+            |
+    +-------v--------+
+    | generate_tests.py |
+    | Generates pytest  |
+    | test files        |
+    | Also calls        |
+    | snapshot creation |
+    +------------------+
+            |
+    +-------v---------+
+    | execute_tests.py |
+    | Runs pytest tests|
+    +------------------+
 
+       [Uses Below Modules]
++---------------------+      +--------------------+
+| utils/db.py         |<---->| config/envs.yaml   |
+| DB connections      |      | Env configs        |
++---------------------+      +--------------------+
+| utils/compare.py    |
+| Result comparison   |
++---------------------+
+| utils/release_runner.py |
+| Apply SQL scripts   |
++---------------------+
+| sql/*.sql           |
+| Table metadata SQLs |
++---------------------+
+
+[Inputs]
+ - sql/*.sql               => Metadata SQL templates
+ - queries/*.sql           => Schema-checking queries
+ - releases/R*/.sql        => Forward & rollback scripts
+ - expected/               => Editable expected output from sandbox (YAML format)
+
+[Outputs]
+ - generated_tests/*.py    => Pytest test cases
+ - report_<release>.html   => HTML test reports
+________________________________________
+4. Folder Structure
 dbtest_framework/
 ├── config/
-│   └── envs.yaml
+│   └── envs.yaml              # DB connection configs
+├── sql/                       # SQL templates for metadata extraction
+│   ├── all_tables.sql
+│   ├── columns.sql
+│   ├── primary_key.sql
+│   ├── unique_constraints.sql
+│   └── triggers.sql
 ├── expected/
-│   └── tables/
-├── queries/
+│   └── tables/                # YAML snapshots per table
+├── queries/                   # Custom validation SQLs
 ├── releases/
 │   └── R1/
 │       ├── forward.sql
 │       └── rollback.sql
-├── generated_tests/
+├── generated_tests/           # Auto-generated test files
 ├── utils/
 │   ├── db.py
 │   ├── compare.py
 │   └── release_runner.py
-├── generate_tests.py
-├── execute_tests.py
-├── main.py
-├── pom.xml
+├── generate_tests.py          # Creates test files, uses snapshot generator
+├── execute_tests.py           # Runs pytest and generates reports
+├── main.py                    # Combined generation + execution
+├── pom.xml                    # Maven wrapper for Jenkins integration
 ├── README.md
+________________________________________
+5. Snapshot Generator Using SQL Templates
+The snapshot generator reads reusable .sql files under sql/ to fetch metadata for each table.
+5.1 sql/all_tables.sql
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE'
+  AND table_schema NOT IN ('pg_catalog', 'information_schema');
+5.2 sql/columns.sql
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = %s AND table_name = %s
+ORDER BY ordinal_position;
+5.3 sql/primary_key.sql
+SELECT kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+  ON tc.constraint_name = kcu.constraint_name
+ AND tc.table_schema = kcu.table_schema
+WHERE tc.constraint_type = 'PRIMARY KEY'
+  AND tc.table_schema = %s AND tc.table_name = %s;
+5.4 sql/unique_constraints.sql
+SELECT tc.constraint_name
+FROM information_schema.table_constraints tc
+WHERE tc.constraint_type = 'UNIQUE'
+  AND tc.table_schema = %s AND tc.table_name = %s;
+5.5 sql/triggers.sql
+SELECT trigger_name, event_manipulation, action_statement
+FROM information_schema.triggers
+WHERE event_object_schema = %s AND event_object_table = %s;
+Snapshots are written to expected/tables/<table>.yaml.
+________________________________________
+6. Test Strategy
+•	Each table’s YAML snapshot becomes the gold standard.
+•	All validation compares sandbox snapshot with target DB (after forward and rollback).
+•	Rollback validation is restricted to sandbox only.
+________________________________________
+7. Execution Commands
+# Step-by-step:
+python generate_tests.py R1     # includes snapshot creation
+python execute_tests.py R1
 
-6. Maven Integration
-Maven exec plugin enables Jenkins to invoke Python scripts.
-Example pom.xml snippet:
+# Combined:
+python main.py R1
 
-<plugin>
-  <groupId>org.codehaus.mojo</groupId>
-  <artifactId>exec-maven-plugin</artifactId>
-  <version>3.1.0</version>
-  <executions>
-    <execution>
-      <id>run-dbtests</id>
-      <phase>test</phase>
-      <goals><goal>exec</goal></goals>
-      <configuration>
-        <executable>python3</executable>
-        <arguments>
-          <argument>main.py</argument>
-          <argument>${env.RELEASE}</argument>
-        </arguments>
-      </configuration>
-    </execution>
-  </executions>
-</plugin>
-
-7. Jenkins Usage
-To run the framework for a given release:
+# Jenkins-compatible Maven run (if setup):
 export RELEASE=R1
 mvn test
+________________________________________
+8. Future Enhancements
+•	Add DB2 support
+•	Validate data changes along with schema
+•	Hash-based snapshot testing
+•	Liquibase changelog parser for YAML-based releases
+•	Integration with Jenkins/GitHub Actions
