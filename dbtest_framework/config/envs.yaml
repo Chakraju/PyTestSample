@@ -1,0 +1,13 @@
+sandbox:
+  host: localhost
+  port: 5432
+  user: sandbox_user
+  password: secret
+  dbname: sandbox_db
+
+dev:
+  host: dev-db.example.net
+  port: 5432
+  user: dev_user
+  password: secret
+  dbname: dev_db
