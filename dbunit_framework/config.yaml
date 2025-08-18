@@ -1,0 +1,11 @@
+sandbox:
+  url: postgresql+psycopg2://user:pass@localhost:5432/sandbox_db
+  schema: public
+  include_schemas: [public]
+  exclude_schemas: [pg_catalog, information_schema]
+  table_like: "%"
+  row_limit: null
+
+dev:
+  url: postgresql+psycopg2://user:pass@localhost:5432/dev_db
+  schema: public
