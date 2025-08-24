@@ -1,0 +1,27 @@
+schemacrawler:
+  executable: schemacrawler
+  server: postgresql
+  info_level: maximum
+  command: details
+  schemas: "public"
+  output_formats: [json, yaml]
+
+sandbox:
+  host: localhost
+  port: 5432
+  database: sandbox_db
+  user: sandbox_user
+  password: sandbox_pass
+
+dev:
+  host: localhost
+  port: 5432
+  database: dev_db
+  user: dev_user
+  password: dev_pass
+
+compare:
+  ignore_keys: ["remarks", "columnOrdinalPosition", "definitionExpression", "definitionText", "definition", "lookupKey"]
+  ignore_sections: ["databaseInfo", "jdbcDriverInfo", "serverInfo"]
+  normalize_sql_keys: ["definition", "definitionText", "viewDefinition", "routineBody"]
+  include_root_keys: ["schemas", "tables", "columns", "tableConstraints", "routines", "views", "sequences"]

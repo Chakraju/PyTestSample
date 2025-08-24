@@ -1,0 +1,2 @@
+pyyaml
+pytest>=8.0

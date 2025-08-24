@@ -1,0 +1,74 @@
+Short answer: DBUnit isn’t built for schema verification, so using it for that is the wrong tool and fairly complex.
+
+Why it’s a poor fit
+
+DBUnit’s purpose: compare table data to “flat XML” datasets.
+
+Schema checks (tables/columns/types/PK/UK/FK/views/functions/sequences/roles) live in metadata (information_schema, pg_catalog)—DBUnit doesn’t assert on those.
+
+You’d end up writing a lot of custom Java (or bending DBUnit) to fetch metadata and compare it yourself, which defeats the point of DBUnit.
+
+What it would take if you insisted on DBUnit
+
+Build a custom metadata extractor (Java/JDBC) to serialize schema into a pseudo-dataset format that DBUnit can read.
+
+Write adapters so DBUnit treats “schema objects” like tables/rows, then force Assertion.assertEquals on that synthetic data.
+
+Maintain a lot of brittle mapping logic (types, nullability, defaults, identity, constraints, view/function normalization, etc.).
+Net: high complexity, little benefit.
+
+Practical alternatives (much simpler & purpose-built)
+
+Liquibase diff (or Flyway with an extension): compare Sandbox→Dev and emit a clear diff (or a diff changelog).
+
+SchemaCrawler / jOOQ-meta: inspect and compare schema programmatically.
+
+SQL-based approach (what I gave you): query information_schema/pg_catalog and compare to an exported XML/JSON snapshot (clean, CI-friendly).
+
+pg_dump --schema-only + a diff tool (or apgdiff): quick, reliable for Postgres.
+
+Recommendation
+
+Keep DBUnit for data checks (if you need them). For schema verification, use Liquibase diff or the SQL-based validator I provided—both are simpler, clearer, and designed for the job.
+
+Database Rider (which extends DBUnit for Java + JUnit) is in the same category as DBUnit: it is designed to seed data and assert table contents, not to validate that schema objects exist.
+
+What Database Rider can do easily
+
+Load YAML/JSON/XML datasets into tables before a test.
+
+Assert table data against expected datasets.
+
+Clean or reset data between tests.
+
+What it cannot do directly
+
+Check whether a table/column/index/view/function/role/sequence exists in Dev.
+
+Validate column types, defaults, constraints, or ownership.
+
+How complex to force schema checks with Database Rider
+
+If you really wanted to:
+
+Write custom Java code to query information_schema / pg_catalog for tables, columns, constraints, etc.
+
+Convert those results into a dataset format Database Rider understands (a “virtual table” like TABLES with rows for schema/name).
+
+Store your expected schema snapshot in YAML/JSON, then let Database Rider compare the two datasets.
+
+Extend Database Rider with custom rules to ignore volatile fields like function definitions or view SQL.
+
+This ends up being just as complex as writing your own validator — and you lose the readability of a purpose-built schema diff tool.
+
+Complexity summary
+
+Low complexity for data tests (the tool’s intended use).
+
+High complexity (and awkward) for schema tests, since you must write custom mappers and assertions.
+
+Better tools exist: Liquibase diff, SchemaCrawler, pg_dump + diff, or the YAML-based validator we built in Python.
+
+👉 In short: using Database Rider for schema verification is complex, unnatural, and not recommended — easier to use a SQL-based or migration-aware tool.
+
+Would you like me to show you how the same YAML snapshot validator we built could be expressed as a Database Rider dataset (so you can see the effort it takes)?
