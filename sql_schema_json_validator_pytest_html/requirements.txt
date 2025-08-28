@@ -1,0 +1,6 @@
+pyyaml
+SQLAlchemy>=2.0
+psycopg2-binary>=2.9
+pytest>=8
+pytest-html>=4
+deepdiff>=7

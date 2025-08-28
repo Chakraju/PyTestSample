@@ -1,0 +1,16 @@
+sandbox:
+  url: postgresql+psycopg2://user:pass@localhost:5432/sandbox_db
+  include_schemas: [public]
+  exclude_schemas: [pg_catalog, information_schema]
+  table_like: "%"
+
+dev:
+  url: postgresql+psycopg2://user:pass@localhost:5432/dev_db
+
+ignore:
+  tables: []
+  columns: {}
+  column_fields: []
+  grants:
+    ignore_grantees: []
+    ignore_privileges: []
