@@ -1,0 +1,25 @@
+Requirement: Handle Duplicate Records in Lookup Table
+
+Background / Problem Statement
+A new application is inserting multiple records for the same business key into the lookup table, resulting in duplicate entries. This is causing downstream SQL queries to return duplicate customer interaction records.
+
+Business Requirement
+The system shall ensure that customer interaction data retrieved from the lookup table does not contain duplicate records for the same business key.
+
+Functional Requirement
+
+The SQL logic used to retrieve customer interaction data shall return only unique records from the lookup table.
+Duplicate entries (based on defined business keys such as <interaction_id / customer_id / timestamp>) must be filtered out.
+The solution should maintain data accuracy and not exclude valid distinct records.
+
+Technical Requirement (Optional but helpful)
+
+Update existing SQL queries to eliminate duplicate rows from the lookup table during data retrieval (e.g., using DISTINCT or equivalent deduplication logic such as ROW_NUMBER with partitioning).
+Ensure performance is not significantly degraded due to deduplication logic.
+
+Acceptance Criteria
+
+Given duplicate records exist in the lookup table, the query returns only one record per unique business key.
+No duplicate customer interaction records appear in the result set.
+Existing valid records are not lost due to deduplication.
+Query performance remains within acceptable limits (e.g., execution time < X seconds).
