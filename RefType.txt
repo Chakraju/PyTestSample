@@ -1,0 +1,87 @@
+EventTypeCode Removal Enhancement – Technical Requirements Document
+1. Purpose
+This enhancement removes the dependency on EventTypeCode across the Kafka ingestion pipeline, PostgreSQL database schema, and Java REST API. The solution standardizes event processing by storing and exposing EventTypeDescription directly without requiring reference table lookups.
+The enhancement applies to:
+•	Kafka Anti-Corruption Layer (ACL)
+•	Kafka Sink Consumer
+•	PostgreSQL Database
+•	Database Migration Scripts
+•	Java REST API
+________________________________________
+2. Functional Requirements
+2.1 Kafka – Anti-Corruption Layer (ACL)
+Requirements
+The ACL SHALL read the eventTypeDescription field from the upstream producer Kafka message payload.
+The ACL SHALL map eventTypeDescription directly to the corresponding field in the CustomerData domain model.
+The ACL SHALL NOT read, map, or forward the eventTypeCode field.
+If the eventTypeCode field is present in the upstream producer payload, the ACL MUST ignore the field completely.
+If eventTypeDescription is absent or null in the producer payload, the ACL SHALL propagate a null value to the CustomerData Kafka topic without throwing an exception.
+All existing ACL transformation unit tests SHALL be updated to reflect the removal of eventTypeCode mapping behavior.
+________________________________________
+2.2 Kafka – Sink Consumer
+Requirements
+The Sink Consumer SHALL read eventTypeDescription from the CustomerData Kafka topic message.
+The Sink Consumer SHALL insert the eventTypeDescription value directly into the Events.EventTypeDescription column.
+The Sink Consumer SHALL NOT perform any lookup against the EventTypeRef table.
+All references to EventTypeRef within the Sink Consumer codebase SHALL be removed.
+The Sink Consumer SHALL NOT reference the EventTypeCd column in any INSERT or UPDATE statement.
+Sink Consumer integration tests SHALL be updated to validate:
+•	EventTypeDescription is correctly persisted
+•	EventTypeCd is absent from all DML statements
+________________________________________
+2.3 PostgreSQL – Database Changes
+2.3.1 Events Table
+Requirements
+The EventTypeCd column SHALL be removed from the Events table.
+A new column named EventTypeDescription of type VARCHAR(255) SHALL be added to the Events table.
+The EventTypeDescription column SHALL be nullable to accommodate existing records where the description cannot be resolved.
+Any foreign key constraint from Events.EventTypeCd to EventTypeRef.EventTypeCd SHALL be dropped prior to removal of the EventTypeCd column.
+Any index on Events.EventTypeCd SHALL be removed.
+________________________________________
+2.3.2 EventTypeRef Table
+Requirements
+The EventTypeRef table SHALL be removed from the database after completion and validation of the data migration process.
+A migration script SHALL transfer EventTypeDescription values from EventTypeRef into Events.EventTypeDescription by joining on EventTypeCd.
+The migration SHALL occur prior to removal of:
+•	Events.EventTypeCd
+•	EventTypeRef
+The migration script SHALL be idempotent and safe to execute multiple times without duplicating or corrupting data.
+A backup of:
+•	the Events table containing EventTypeCd
+•	the EventTypeRef table
+SHALL be taken before execution of the migration script in any non-development environment.
+________________________________________
+2.4 Database Migration Script
+Migration Sequence Requirements
+The migration script SHALL add the EventTypeDescription column to the Events table.
+The migration script SHALL backfill EventTypeDescription values from the EventTypeRef table.
+The migration script SHALL drop the foreign key constraint associated with EventTypeCd.
+The migration script SHALL remove any index on EventTypeCd.
+The migration script SHALL remove the EventTypeCd column from the Events table.
+The migration script SHALL remove the EventTypeRef table.
+________________________________________
+2.5 Java REST API
+Requirements
+The JPA Entity class for the Events table SHALL replace the eventTypeCd field mapping with an eventTypeDescription field mapped to the Events.EventTypeDescription column.
+Any JPQL or native SQL query referencing:
+•	EventTypeCd
+•	EventTypeRef
+SHALL be updated or removed.
+The API response DTO SHALL return null for the eventTypeCode field to maintain backward compatibility for existing API consumers.
+The API response DTO SHALL populate the eventTypeDescription field using Events.EventTypeDescription.
+The eventTypeCode field SHALL remain in the API response DTO as a nullable deprecated field to avoid breaking downstream consumers.
+The value of eventTypeCode SHALL always be null.
+All API unit tests and integration tests referencing EventTypeCd SHALL be updated.
+Updated API tests SHALL validate:
+•	eventTypeCode is null
+•	eventTypeDescription contains the expected value
+API documentation, including OpenAPI and Swagger specifications, SHALL:
+•	mark eventTypeCode as deprecated
+•	identify eventTypeDescription as the canonical event type field
+________________________________________
+3. Non-Functional Requirements
+The enhancement SHALL maintain backward compatibility for existing API consumers.
+The Kafka ingestion pipeline SHALL continue processing messages when eventTypeDescription is null or missing.
+The migration process SHALL avoid data loss for existing event records.
+The migration script SHALL support repeatable deployments through idempotent execution.
+The enhancement SHALL eliminate operational dependency on the EventTypeRef reference table.
