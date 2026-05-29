@@ -17,7 +17,11 @@ The ACL SHALL NOT read, map, or forward the eventTypeCode field.
 If the eventTypeCode field is present in the upstream producer payload, the ACL MUST ignore the field completely.
 If eventTypeDescription is absent or null in the producer payload, the ACL SHALL propagate a null value to the CustomerData Kafka topic without throwing an exception.
 All existing ACL transformation unit tests SHALL be updated to reflect the removal of eventTypeCode mapping behavior.
-________________________________________
+
+ 7.5 – Kafka Avro Schema (CustomerData Topic)
+ The eventTypeCode field remains in the schema for backward compatibility but is set to null by the ACL at the application layer. The Sink Consumer ignores it. 
+  A note SHALL be added to the schema documentation indicating that eventTypeCode is deprecated at the application level, even though it is retained in the schema for compatibility.
+  ________________________________________
 2.2 Kafka – Sink Consumer
 Requirements
 The Sink Consumer SHALL read eventTypeDescription from the CustomerData Kafka topic message.
