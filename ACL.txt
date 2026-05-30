@@ -1,0 +1,72 @@
+5. Data Transformation Requirements
+FR-007 Timestamp Format
+
+The ACL shall convert EventTS to the timestamp format required by the Customer Interaction Avro schema.
+
+FR-008 Null Value Handling
+
+The ACL shall preserve null values for optional fields when the destination schema permits null values.
+
+FR-009 String Trimming
+
+The ACL shall remove leading and trailing whitespace from string fields before publishing the destination event.
+
+6. Validation Requirements
+FR-010 Required Fields
+
+The ACL shall validate that the following source fields are present:
+
+EventTS
+CustomerID
+EventTypeCd
+FR-011 Invalid Messages
+
+The ACL shall reject messages that fail validation and shall not publish them to the Customer Interaction topic.
+
+7. Error Handling Requirements
+FR-012 Processing Errors
+
+The ACL shall log transformation and validation errors with sufficient details to support troubleshooting.
+
+FR-013 Dead Letter Topic
+
+The ACL shall publish invalid or unprocessable messages to a Dead Letter Topic (DLT).
+
+The DLT message shall include:
+
+Original source payload
+Error timestamp
+Error reason
+Source topic name
+8. Kafka Publishing Requirements
+FR-014 Destination Publication
+
+The ACL shall publish successfully transformed messages to the Customer Interaction Kafka topic.
+
+FR-015 Message Ordering
+
+The ACL shall preserve Kafka partition ordering for messages received from the same source partition.
+
+FR-016 Schema Compliance
+
+The ACL shall publish messages that conform to the Customer Interaction Avro schema registered in the Schema Registry.
+
+9. Non-Functional Requirements
+NFR-001 Throughput
+
+The ACL shall process messages without introducing significant latency to the customer interaction ingestion pipeline.
+
+NFR-002 Availability
+
+The ACL shall support deployment in a highly available configuration.
+
+NFR-003 Observability
+
+The ACL shall expose metrics for:
+
+Messages received
+Messages transformed
+Messages published
+Validation failures
+DLT publications
+
