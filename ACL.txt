@@ -70,3 +70,49 @@ Messages published
 Validation failures
 DLT publications
 
+View-Only Event Filtering
+1.	The ACL SHALL evaluate the EventTypeCd of every inbound source event against the configurable View-Only EventTypeCd exclusion list before any further processing.
+2.	If EventTypeCd matches an entry in the exclusion list, the ACL SHALL silently discard the event. It SHALL NOT be published to the destination topic and SHALL NOT be routed to the DLQ.
+3.	The ACL SHALL increment the acl.events.filtered.viewonly counter metric for each discarded event to support operational monitoring.
+4.	The View-Only EventTypeCd exclusion list SHALL be externally configurable and reloadable without requiring a service restart or code redeployment.
+5.	Filtering SHALL be applied before grouping. A filtered event SHALL NOT affect the state of any open session group.
+
+7.6 Related Event Grouping
+1.	The ACL SHALL group inbound source events by the composite key CustomerID + SessionID. All non-filtered events sharing the same CustomerID and SessionID SHALL be aggregated into a single destination interaction record.
+2.	The ACL SHALL open a new group upon receipt of the first non-filtered event for a CustomerID + SessionID pair that has no existing open group.
+3.	The ACL SHALL close and publish a group when an event is received whose EventTypeCd matches a configured end-of-session code. The end-of-session EventTypeCd list SHALL be externally configurable without code redeployment.
+4.	The InteractionStartTS field of the published destination record SHALL be set to the earliest EventTS observed across all events in the group.
+5.	All other destination fields (CustomerID, ClientID, EventTypeCd, EventResponseText, EventType) SHALL be populated from the end-of-session event.
+6.	The ACL SHALL persist in-flight group state (open sessions awaiting an end event) in a durable, externalized state store. Group state SHALL survive ACL service restarts without data loss.
+7.	Each CustomerID + SessionID group SHALL produce exactly one destination message. Duplicate end-of-session events for an already-closed group SHALL be idempotently ignored.
+
+
+BR-001 View-Only Interaction Filter
+
+The Anti-Corruption Layer shall identify View-Only interactions using the value of the EventTypeCd field received from the source topic.
+
+Only events whose EventTypeCd value is configured as a View-Only event shall be classified as View-Only interactions.
+
+The list of valid View-Only EventTypeCd values shall be maintained in a configuration repository and shall be updateable without code changes.
+
+Acceptance Criteria
+Scenario	Expected Result
+EventTypeCd is configured as View-Only	Event is classified as a View-Only interaction
+EventTypeCd is not configured as View-Only	Event is not classified as a View-Only interaction
+EventTypeCd is null	Event shall fail validation and be routed to the DLT
+BR-002 Related Event Session Grouping
+
+The Anti-Corruption Layer shall group related interaction events into a common session using the combination of CustomerID and SessionID.
+
+The grouping key shall be constructed as:
+
+CustomerID + SessionID
+
+All events sharing the same CustomerID and SessionID shall be considered part of the same interaction session.
+
+Acceptance Criteria
+CustomerID	SessionID	Result
+12345	ABC123	Session Key = 12345ABC123
+12345	ABC123	Same interaction session
+12345	XYZ999	Different interaction session
+99999	ABC123	Different interaction session
