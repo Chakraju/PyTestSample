@@ -8,24 +8,27 @@ Here is a draft requirements document.
 
 ### 1. Purpose
 
-The purpose of this application is to provide testers with a command-line utility that publishes test messages to the myRetirementApp Kafka topic. The application enables manual end-to-end validation of downstream processing and API behavior without requiring testers to use Kafka tooling directly.
+The purpose of this utility is to enable testers to generate and publish test messages to source application Kafka topics for Customer Interaction processing and downstream API validation.
+
+The utility shall support multiple source systems and multiple input formats to simplify test data setup across environments and releases.
 
 ### 2. Scope
 
-The application shall:
+The utility shall:
 
-* Accept a JSON file as input.
-* Validate the JSON structure.
-* Publish the JSON payload to the myRetirementApp Kafka topic.
-* Display publishing status to the user.
-* Provide logging and error messages.
-* Support manual testing of downstream systems and APIs.
+Accept JSON or CSV input files.
+Support publishing messages for multiple source applications.
+Generate Avro-compliant messages based on source-system schemas.
+Publish messages to the appropriate source Kafka topics.
+Preserve message ordering during publication.
+Support both positive and negative test scenarios.
+Log generated and published messages.
 
-The application shall not:
+The utility shall not:
 
-* Validate business rules of downstream applications.
-* Verify API responses automatically.
-* Perform performance or load testing.
+Validate downstream API responses.
+Automate end-to-end test verification.
+Modify source system schemas.
 
 ### 3. Stakeholders
 
@@ -38,11 +41,11 @@ The application shall not:
 
 ### 4. User Story
 
-**As a Tester**
+As a Tester
 
-I want to provide a JSON file containing a test customer interaction event
+I want to provide JSON or CSV input files containing customer interaction test data
 
-So that the event is published to the myRetirementApp Kafka topic and I can manually verify downstream API processing.
+So that the utility generates and publishes messages to source-system Kafka topics for Customer Interaction processing and downstream validation.
 
 ### 5. Assumptions
 
@@ -76,6 +79,201 @@ The application shall verify:
 * The file contains valid JSON.
 
 If validation fails, the application shall terminate and display an appropriate error message.
+FR-001: Source System Agnostic Processing
+
+The utility shall support multiple source systems.
+
+The utility shall determine the target Kafka topic and Avro schema based on the source system specified in the input data or configuration.
+
+Examples:
+
+Source System	Kafka Topic
+myRetirementApp	Configured Topic A
+SourceSystemB	Configured Topic B
+SourceSystemC	Configured Topic C
+
+Topic mappings shall be externally configurable.
+FR-002: Supported Input Formats
+
+The utility shall support:
+
+JSON input files
+CSV input files
+
+The input format shall be automatically detected from the file extension or specified through a command-line parameter.
+FR-003: JSON Processing
+
+The utility shall continue to support publication of JSON messages.
+
+The utility shall publish the JSON payload without modification unless schema validation or transformation is configured.
+
+FR-004: CSV Processing
+
+The utility shall accept CSV files containing one record per row.
+
+Each row shall contain:
+
+Source System Identifier
+Message Data Fields
+
+Example:
+
+sourceSystem,customerId,eventType,eventDate
+myRetirementApp,12345,VIEW_STATEMENT,2026-01-01
+
+Each CSV row shall result in a single generated Kafka message.
+FR-005: CSV Row Ordering
+
+The utility shall process CSV rows sequentially.
+
+Messages shall be published in the same order as they appear in the CSV file.
+
+Example:
+
+Row 1 → Message 1
+
+Row 2 → Message 2
+
+Row 3 → Message 3
+
+FR-006: Avro Message Generation
+
+The utility shall generate messages according to the Avro schema associated with the specified source system.
+
+Schema selection shall be based on source-system configuration.
+
+The generated message shall conform to the Avro schema for the selected source system.
+FR-007: Missing Value Handling
+
+When processing CSV input:
+
+Missing values may be populated using schema-defined default values.
+Nullable fields may be set to null.
+Required fields without defaults shall generate validation errors.
+
+Example:
+
+CSV Value	Generated Value
+Empty Nullable Field	null
+Empty Field With Schema Default	default value
+Empty Required Field	validation error
+
+FR-016: Array Field Support
+
+The utility shall interpret CSV column values containing valid JSON array syntax as Avro array fields.
+
+If an array value cannot be parsed, the record shall be treated as invalid.
+
+FR-017: Configurable JSON Schema Validation
+
+The utility shall support configurable schema validation modes:
+
+Mode	Behavior
+STRICT	Validate against Avro schema before publishing
+RAW	Publish without schema validation
+
+STRICT mode shall be the default mode.
+
+FR-018: Continue Processing on Record Errors
+
+The utility shall continue processing subsequent CSV records when an individual record fails validation or publication.
+
+The utility shall generate a summary report containing:
+
+Total records processed
+Successful publications
+Failed records
+Failure reasons
+
+Example:
+
+Records Processed: 100
+Published Successfully: 98
+Failed: 2
+
+FR-019: Kafka Message Key Support
+
+The utility shall support configurable Kafka message keys.
+
+Message keys may be supplied through:
+
+CSV columns
+JSON payload fields
+Command-line parameters
+
+If no key is provided, the utility shall generate a unique key.
+
+FR-021: Processing Summary Report
+
+Upon completion, the utility shall generate a processing summary including:
+
+Source system
+Input file name
+Total records
+Successful publications
+Failed publications
+Processing duration
+
+Example:
+
+Execution Summary
+-----------------
+Source System: myRetirementApp
+File: interactions.csv
+
+Records Processed: 500
+Successful: 497
+Failed: 3
+
+Duration: 00:00:14
+
+FR-022: Failed Record Reporting
+
+The utility shall create a detailed failure report containing:
+
+CSV row number
+Source system
+Error message
+Timestamp
+
+The report shall be written to a file for tester review.
+
+Example:
+
+Row 17
+Reason: Required field customerId missing
+
+Row 93
+Reason: Invalid eventDate format
+
+
+FR-009: Topic Publication
+
+The utility shall publish generated messages to the Kafka topic configured for the source system.
+
+FR-010: Publish Confirmation
+
+Upon successful publication, the utility shall display:
+
+Source System
+Topic Name
+Partition
+Offset
+Timestamp
+
+FR-011: Generated Message Logging
+
+The utility shall log the generated message payload prior to publication.
+
+The log shall support troubleshooting and validation of generated Avro messages.
+
+FR-012: Negative Test Support
+
+The utility shall support publication of JSON payloads that do not conform to the expected Avro schema.
+
+This capability shall enable testers to validate downstream error handling and negative test scenarios.
+
+The utility shall log schema validation failures when applicable.
 
 #### FR-004: JSON Payload Loading
 
@@ -116,16 +314,19 @@ Offset: 102345
 Timestamp: 2026-06-08T14:30:00Z
 ```
 
-#### FR-008: Error Handling
+FR-014: Error Handling
 
-The application shall display meaningful error messages when:
+The utility shall provide meaningful error messages for:
 
-* Input file is missing
-* JSON is invalid
-* Kafka connection fails
-* Authentication fails
-* Topic is unavailable
-* Message publication fails
+Missing files
+Invalid JSON
+Invalid CSV
+Schema generation failures
+Missing required fields
+Kafka connection failures
+Authentication failures
+Publication failures
+
 
 #### FR-009: Logging
 
