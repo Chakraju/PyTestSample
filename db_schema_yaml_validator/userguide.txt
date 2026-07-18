@@ -1,0 +1,303 @@
+# Customer Data API – Consumer User Guide
+
+**Version:** 1.0
+**Audience:** Application Developers, System Integrators, Technical Business Analysts, QA Teams
+
+---
+
+# Customer Data API Consumer User Guide
+
+## 1. Purpose
+
+The Customer Data API enables authorized consumer applications to retrieve customer interaction history within a specified date range.
+
+The API provides versioned endpoints to support backward compatibility while introducing new functionality in newer versions.
+
+Current supported versions:
+
+| Version | Endpoint                      |
+| ------- | ----------------------------- |
+| V2      | `/api/interactions-events`    |
+| V4      | `/api/v4/interactions-events` |
+
+---
+
+# 2. Overview
+
+The API returns customer interaction records and their associated events.
+
+Each interaction may contain one or more events representing activities performed by a customer within a business application.
+
+Typical consumers include:
+
+* Customer Service Applications
+* Enterprise Portals
+* CRM Applications
+* Reporting Applications
+* Analytics Platforms
+
+---
+
+# 3. API Versions
+
+## Version 2
+
+### Endpoint
+
+```
+POST /api/interactions-events
+```
+
+### Purpose
+
+Returns customer interactions for a given customer and client within a date range.
+
+---
+
+## Version 4
+
+### Endpoint
+
+```
+POST /api/v4/interactions-events
+```
+
+### Purpose
+
+Provides the same functionality as Version 2 with an additional capability to exclude interactions originating from specified applications.
+
+---
+
+# 4. Request Parameters
+
+## Version 2 Request
+
+| Field      | Type     | Required | Description                   |
+| ---------- | -------- | -------- | ----------------------------- |
+| customerId | String   | Yes      | Unique customer identifier    |
+| clientId   | String   | Yes      | Client/Application identifier |
+| startDt    | DateTime | Yes      | Beginning of search window    |
+| endDt      | DateTime | Yes      | End of search window          |
+
+Example
+
+```json
+{
+  "customerId": "123456789",
+  "clientId": "SSA",
+  "startDt": "2025-01-01T00:00:00Z",
+  "endDt": "2025-01-31T23:59:59Z"
+}
+```
+
+---
+
+## Version 4 Request
+
+| Field      | Type          | Required | Description                                            |
+| ---------- | ------------- | -------- | ------------------------------------------------------ |
+| customerId | String        | Yes      | Unique customer identifier                             |
+| clientId   | String        | Yes      | Client/Application identifier                          |
+| startDt    | DateTime      | Yes      | Beginning of search window                             |
+| endDt      | DateTime      | Yes      | End of search window                                   |
+| excludeApp | Array<String> | No       | List of application names to exclude from the response |
+
+Example
+
+```json
+{
+  "customerId": "123456789",
+  "clientId": "SSA",
+  "startDt": "2025-01-01T00:00:00Z",
+  "endDt": "2025-01-31T23:59:59Z",
+  "excludeApp": [
+    "MySSA",
+    "Medicare"
+  ]
+}
+```
+
+---
+
+# 5. Response Structure
+
+## Version 2 Response
+
+| Field                | Description                           |
+| -------------------- | ------------------------------------- |
+| numberOfInteractions | Total interactions returned           |
+| customerId           | Customer identifier                   |
+| clientId             | Client identifier                     |
+| startDt              | Requested start date                  |
+| endDt                | Requested end date                    |
+| bizTextId            | Business transaction identifier       |
+| transactionId        | Unique API transaction identifier     |
+| interactionEvents    | Collection of interactions and events |
+
+Example
+
+```json
+{
+  "numberOfInteractions": 2,
+  "customerId": "123456789",
+  "clientId": "SSA",
+  "startDt": "2025-01-01",
+  "endDt": "2025-01-31",
+  "bizTextId": "ABC12345",
+  "transactionId": "TX987654321",
+  "interactionEvents": [
+    {
+      "interactionId": "INT1001",
+      "events": [
+        {
+          "eventType": "Login",
+          "eventTime": "2025-01-05T09:15:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Version 4 Response
+
+| Field                | Description                           |
+| -------------------- | ------------------------------------- |
+| numberOfInteractions | Total interactions returned           |
+| customerId           | Customer identifier                   |
+| clientId             | Client identifier                     |
+| startDt              | Requested start date                  |
+| endDt                | Requested end date                    |
+| bizTransId           | Business transaction identifier       |
+| interactionEvents    | Collection of interactions and events |
+
+Example
+
+```json
+{
+  "numberOfInteractions": 2,
+  "customerId": "123456789",
+  "clientId": "SSA",
+  "startDt": "2025-01-01",
+  "endDt": "2025-01-31",
+  "bizTransId": "BT100001",
+  "interactionEvents": [
+    {
+      "interactionId": "INT1001",
+      "events": [
+        {
+          "eventType": "Login",
+          "eventTime": "2025-01-05T09:15:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+# 6. Version Comparison
+
+| Feature              | V2                         | V4                            |
+| -------------------- | -------------------------- | ----------------------------- |
+| Endpoint             | `/api/interactions-events` | `/api/v4/interactions-events` |
+| Customer ID          | ✓                          | ✓                             |
+| Client ID            | ✓                          | ✓                             |
+| Date Range           | ✓                          | ✓                             |
+| Exclude Applications | No                         | Yes                           |
+| bizTextId            | Yes                        | No                            |
+| bizTransId           | No                         | Yes                           |
+| TransactionId        | Yes                        | No                            |
+
+---
+
+# 7. Request Processing
+
+1. Consumer submits a request.
+2. API validates mandatory fields.
+3. Customer interaction records are retrieved.
+4. For Version 4, interactions from applications listed in `excludeApp` are filtered out.
+5. Matching interactions and events are returned to the consumer.
+
+---
+
+# 8. Error Handling
+
+| HTTP Status | Description                                |
+| ----------- | ------------------------------------------ |
+| 200         | Request processed successfully             |
+| 400         | Invalid request or missing required fields |
+| 401         | Unauthorized                               |
+| 403         | Forbidden                                  |
+| 404         | No matching interactions found             |
+| 500         | Internal server error                      |
+
+Example error response:
+
+```json
+{
+  "timestamp": "2025-01-15T10:20:30Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "customerId is required"
+}
+```
+
+---
+
+# 9. Best Practices
+
+* Always provide a valid `customerId` and `clientId`.
+* Limit the date range to only the required period to improve performance.
+* Use **Version 4** for new integrations to take advantage of the `excludeApp` filtering capability.
+* Handle empty responses gracefully when no interactions are available.
+* Validate request payloads before invoking the API.
+* Log transaction identifiers (where available) to facilitate troubleshooting and support.
+
+---
+
+# 10. Migration from Version 2 to Version 4
+
+Consumers upgrading from Version 2 should note the following changes:
+
+| Version 2                  | Version 4                                              |
+| -------------------------- | ------------------------------------------------------ |
+| `/api/interactions-events` | `/api/v4/interactions-events`                          |
+| `bizTextId`                | `bizTransId`                                           |
+| `transactionId`            | Removed                                                |
+| No application filtering   | `excludeApp` supports excluding specified applications |
+
+Existing request parameters remain compatible, with the optional addition of the `excludeApp` array in Version 4.
+
+---
+
+# 11. Contact and Support
+
+For questions regarding API onboarding, schema definitions, authentication, or production support, contact the Customer Data API support team or your designated API administrator.
+
+---
+
+**Appendix: Sample Integration Flow**
+
+```text
+Consumer Application
+        │
+        │ POST Request
+        ▼
+Customer Data API
+        │
+        │ Validate Request
+        ▼
+Retrieve Customer Interactions
+        │
+        │ (V4 Only)
+        │ Filter Excluded Applications
+        ▼
+Build Response
+        │
+        ▼
+Consumer Application
+```
