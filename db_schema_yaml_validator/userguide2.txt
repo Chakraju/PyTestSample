@@ -1,0 +1,206 @@
+1. Introduction
+
+The Customer Data API provides a standardized interface for authorized applications to retrieve customer interaction and event history from the Customer Data Platform.
+
+The API supports versioning to ensure backward compatibility while enabling new capabilities and enhancements.
+
+2. Purpose
+
+The purpose of the Customer Data API is to provide a secure, consistent, and reusable service for consumer applications to retrieve customer interaction history from a centralized repository.
+
+The API enables consuming applications to:
+
+Retrieve customer interactions across enterprise applications
+View customer events within a specified date range
+Eliminate the need for direct database access
+Promote data consistency across enterprise systems
+Support customer service, reporting, analytics, and operational applications
+3. Intended Audience
+
+This guide is intended for:
+
+Application Developers
+Technical Business Analysts
+Solution Architects
+Integration Teams
+QA/Test Engineers
+Support Teams
+4. Roles and Responsibilities
+Role	Responsibility
+API Consumer	Calls the Customer Data API and processes the response
+API Provider	Maintains and supports the API service
+Security Team	Issues OAuth/API access tokens
+API Gateway Team	Registers consumer applications and manages routing
+Support Team	Troubleshoots API connectivity and production issues
+5. API Versions
+Version 2 (Deprecated)
+
+Endpoint
+
+POST /api/interactions-events
+
+Notice
+
+Version 2 has been deprecated and is maintained only for backward compatibility.
+
+New consumer applications should integrate with Version 4.
+
+Existing consumers are encouraged to migrate to Version 4.
+
+Version 4 (Current)
+
+Endpoint
+
+POST /api/v4/interactions-events
+
+Version 4 introduces:
+
+Application exclusion filtering
+Improved business transaction identifier
+Enhanced extensibility for future enhancements
+6. Onboarding
+
+Before consuming the Customer Data API, complete the following onboarding steps.
+
+Step 1 – Request API Access
+
+Submit an access request to the API Support Team.
+
+Provide:
+
+Application Name
+Business Owner
+Technical Contact
+Environment(s)
+Expected API Usage
+Step 2 – Obtain Authentication Token
+
+Request an OAuth/API token from the Security Team.
+
+The token must be included in the Authorization header for every request.
+
+Authorization: Bearer <Access Token>
+Step 3 – Register Your Service
+
+Register your application with the API Gateway.
+
+Registration typically includes:
+
+Service Name
+Callback URL (if applicable)
+Network Allowlisting
+Rate Limit Configuration
+Step 4 – Validate Connectivity
+
+Perform connectivity testing in the lower environment before production deployment.
+
+7. Authentication
+
+The API requires a valid access token.
+
+Unauthorized requests will return:
+
+401 Unauthorized
+8. Request Processing
+Consumer sends request.
+API validates request.
+Authorization is verified.
+Customer interactions are retrieved.
+Version 4 optionally filters excluded applications.
+Results are returned.
+9. Request Parameters
+
+(Same as previous guide.)
+
+10. Response Parameters
+
+(Same as previous guide.)
+
+11. Data Retrieval Logic
+
+The Customer Data API retrieves data based on the search criteria supplied in the request.
+
+Filtering Rules
+CustomerId only
+
+Returns all interactions for the specified customer.
+
+ClientId only
+
+Returns all interactions associated with the specified client.
+
+CustomerId + ClientId
+
+When both CustomerId and ClientId are supplied, the API performs an AND condition.
+
+Only interactions matching both values are returned.
+
+WHERE CustomerId = ?
+AND ClientId = ?
+CustomerId + ContactId
+
+If the API supports ContactId, and both CustomerId and ContactId are provided, the API performs an AND condition.
+
+Only records matching both values are returned.
+
+WHERE CustomerId = ?
+AND ContactId = ?
+Date Range
+
+The API returns interactions occurring between:
+
+StartDt
+EndDt
+
+inclusive.
+
+Version 4 ExcludeApp
+
+Version 4 excludes interactions originating from applications specified in the excludeApp array.
+
+Example:
+
+excludeApp =
+
+[
+"",
+""
+]
+
+Those applications will not appear in the response.
+
+12. Version Comparison
+Feature	V2	V4
+Status	Deprecated	Current
+Endpoint	/api/interactions-events	/api/v4/interactions-events
+CustomerId	✓	✓
+ClientId	✓	✓
+Date Range	✓	✓
+excludeApp	No	Yes
+bizTextId	Yes	No
+bizTransId	No	Yes
+transactionId	Yes	No
+13. Error Handling
+
+(Existing section.)
+
+14. Troubleshooting
+Issue	Possible Cause	Resolution
+401 Unauthorized	Invalid or expired token	Obtain a new access token
+403 Forbidden	Consumer application not authorized	Verify application registration
+400 Bad Request	Missing required fields	Validate request payload
+404 No Data Found	No matching interactions	Verify customer ID and date range
+Empty Response	Filters too restrictive	Review CustomerId, ClientId, ContactId, and date range
+Slow Response	Large date range	Reduce the requested date range
+Missing Interactions (V4)	Application excluded	Review the excludeApp values
+15. Best Practices
+Use Version 4 for all new integrations.
+Migrate existing Version 2 consumers when feasible.
+Keep the requested date range as small as practical for better performance.
+Validate all required request fields before submitting API calls.
+Log transaction identifiers for troubleshooting.
+Review excludeApp values carefully, as excluded applications will not be returned in the response.
+Handle empty result sets gracefully.
+16. Support
+
+For assistance with onboarding, authentication, production support, or API issues, contact the Customer Data API Support Team.
